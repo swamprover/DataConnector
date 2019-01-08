@@ -2,13 +2,16 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
+	"io"
+	"log"
 	"net/http"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/jinzhu/gorm"
 )
+
+var SRV *http.Server
 
 type Category struct {
 	ID   int    `xml:"id,attr" gorm:"primary_key"`
@@ -17,7 +20,6 @@ type Category struct {
 type Vendor struct {
 	Name string `xml:"vendor"`
 }
-
 type Goods struct {
 	//gorm.Model
 	ID        int     `sql:"AUTO_INCREMENT" gorm:"primary_key"`
@@ -45,33 +47,19 @@ type Data struct {
 }
 
 func main() {
-	// в целям упрощения примера пропущена авторизация и csrf
+	// пропущена авторизация и csrf
 	r := mux.NewRouter()
-	r.HandleFunc("/", Ondulin)
-	/*
-		r.HandleFunc("/items", handlers.List).Methods("GET")
-		r.HandleFunc("/items/new", handlers.AddForm).Methods("GET")
-		r.HandleFunc("/items/new", handlers.Add).Methods("POST")
-		r.HandleFunc("/items/{id}", handlers.Edit).Methods("GET")
-		r.HandleFunc("/items/{id}", handlers.Update).Methods("POST")
-		r.HandleFunc("/items/{id}", handlers.Delete).Methods("DELETE")
-	*/
-	fmt.Println("starting server at :2603")
-	http.ListenAndServe(":2603", r)
-}
+	r.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		io.WriteString(w, "Start DataConnector\n")
+	})
+	r.HandleFunc("/ondulin", Ondulin)
+	r.HandleFunc("/quit", QuitHandler)
 
-func Ondulin() {
-	fmt.Println("Начал загрузку")
-	url := "http://store.onduline.com.ua/custom_export.php"
-	resp, err := http.Get(url)
-	if err != nil {
-		fmt.Println("error happend", err)
-		return
+	//http.ListenAndServe(":2603", r)
+	SRV = &http.Server{Addr: ":2603", Handler: r}
+	if err := SRV.ListenAndServe(); err != http.ErrServerClosed {
+		// Error starting or closing listener:
+		log.Printf("HTTP server ListenAndServe: %v", err)
 	}
-	defer resp.Body.Close()
-
-	respBody, err := ioutil.ReadAll(resp.Body)
-	ParsingVendor(respBody)
-	go ParsingCategory(respBody)
-	ParsingGoods(respBody, true)
+	fmt.Println("starting server at :2603")
 }
